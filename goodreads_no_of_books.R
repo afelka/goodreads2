@@ -7,6 +7,7 @@ library(writexl)
 library(readxl)
 library(maps)
 library(rayshader)
+library(magick)
 
 
 # read csv file exported from goodreads. I have been using Goodreads since 2015. So I filtered accordingly
@@ -35,7 +36,7 @@ fourth_highest <- top_months %>% slice(4)
 fifth_highest <- top_months %>% slice(5)
                    
 # create the chart with labels and texts
-ggplot(read_stats, aes(x = year_month, read_count)) + 
+books_over_month <- ggplot(read_stats, aes(x = year_month, read_count)) + 
   geom_bar( stat = "identity", fill = "#143c8a") +
   geom_text(data = top_months, aes(x = year_month, y = read_count, label = read_count, fontface = "bold"),
             color = "red", size = 3, vjust = -0.5) +
@@ -57,6 +58,7 @@ ggplot(read_stats, aes(x = year_month, read_count)) +
     axis.text.x = element_text(angle = 45, vjust = 0.5, size = 6)
   ) 
 
+ggsave("no_of_books_per_month.png", plot = books_over_month, width = 6, height = 4, dpi = 300)
 
 #Create unique author 
 authors_unique <- read.csv("goodreads_library_export.csv") %>%
@@ -64,8 +66,8 @@ authors_unique <- read.csv("goodreads_library_export.csv") %>%
   select(Title, Author, Average.Rating, Number.of.Pages, Date.Read, My.Rating) %>% group_by(Author) %>%
   summarise(read_count = n()) %>% arrange(desc(read_count)) 
 
-
-write_xlsx(authors_unique, "authors_unique.xlsx")
+#to add countries for authors manually
+#write_xlsx(authors_unique, "authors_unique.xlsx")
 
 #country information is added manually
 authors_unique_country_added <- read_excel("authors_unique.xlsx")
@@ -111,15 +113,87 @@ books_per_country <- ggplot(data = world_joined_all_countries, mapping = aes(x =
   ggtitle("Books Read per Country") +
   theme(plot.title = element_text(size = 8, face = "bold")) +
   theme(legend.position = "none") 
-  
+
+#change theta of the 3d plot and write png output  
+for (i in 45:135) {
 
 # Convert ggplot to 3D plot
-books_per_country3d <- plot_gg(books_per_country)
+books_per_country3d <- plot_gg(books_per_country,
+                               theta=i,
+                               windowsize = c(1400, 866)
+                               )
+j <- i - 44
 
-rgl::rglwidget(rgl::scene3d(books_per_country3d))
+filename <- paste0("no_of_books_3d_", j , ".png")
+
+render_snapshot(
+  filename = filename
+  , clear = TRUE
+  
+)
+
+}
 
 
-authors_per_country3d <- plot_gg(authors_per_country)
+#change phi of the 3d plot and write png output
+for (x in 45:30) {
+  
+  # Convert ggplot to 3D plot
+  books_per_country3d <- plot_gg(books_per_country,
+                                 theta= 135,
+                                 phi = x,
+                                 windowsize = c(1400, 866)
+  )
+  
+  
+  filename <- paste0("no_of_books_3d_", j , ".png")
+  
+  render_snapshot(
+    filename = filename
+    , clear = TRUE
+    
+  )
+  j <<- j + 1
+}
 
-rgl::rglwidget(rgl::scene3d(authors_per_country3d))
+#change theta of the 3d plot on the opposite and write png output  
+for (i in 135:45) {
+  
+  # Convert ggplot to 3D plot
+  books_per_country3d <- plot_gg(books_per_country,
+                                 theta=i,
+                                 phi = 30,
+                                 windowsize = c(1400, 866)
+  )
+  
+  
+  filename <- paste0("no_of_books_3d_", j , ".png")
+  
+  render_snapshot(
+    filename = filename
+    , clear = TRUE
+    
+  )
+  j <<- j + 1
+}
+
+#create data_frame with images in correct reading order
+image_data <- data.frame(
+  image_id = 1:197,
+  image_path = paste0("./no_of_books_3d_", 1:197, ".png")
+)
+
+# read images in a list
+img_list <- lapply(image_data$image_path, image_read)
+
+## join the images together
+img_joined <- image_join(img_list)
+
+## animate at 1 frames per second
+img_animated <- image_animate(img_joined, fps = 4)
+
+# write the gif
+image_write(image = img_animated,
+            path = "books_read_3d.gif")
+
 
